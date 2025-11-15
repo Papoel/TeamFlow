@@ -1,0 +1,161 @@
+# deptrac.yaml
+# Configuration Deptrac pour l'analyse des dépendances architecturales
+# Documentation: https://qossmic.github.io/deptrac/
+
+deptrac:
+  paths:
+    - ./src
+  
+  exclude_files:
+    - '#.*test.*#i'
+    - '#.*Test\.php$#'
+  
+  layers:
+    # Couche Controller - Point d'entrée de l'application
+    - name: Controller
+      collectors:
+        - type: directory
+          value: src/Controller/.*
+    
+    # Couche Entity - Modèles de données
+    - name: Entity
+      collectors:
+        - type: directory
+          value: src/Entity/.*
+    
+    # Couche Repository - Accès aux données
+    - name: Repository
+      collectors:
+        - type: directory
+          value: src/Repository/.*
+        - type: implements
+          value: Doctrine\\Persistence\\ObjectRepository
+    
+    # Couche Service - Logique métier
+    - name: Service
+      collectors:
+        - type: directory
+          value: src/Service/.*
+    
+    # Couche Form - Formulaires Symfony
+    - name: Form
+      collectors:
+        - type: directory
+          value: src/Form/.*
+        - type: extends
+          value: Symfony\\Component\\Form\\AbstractType
+    
+    # Couche Event - Événements et Subscribers
+    - name: Event
+      collectors:
+        - type: directory
+          value: src/Event/.*
+        - type: directory
+          value: src/EventSubscriber/.*
+        - type: implements
+          value: Symfony\\Component\\EventDispatcher\\EventSubscriberInterface
+    
+    # Couche Security - Authentification et autorisation
+    - name: Security
+      collectors:
+        - type: directory
+          value: src/Security/.*
+        - type: implements
+          value: Symfony\\Component\\Security\\Core\\.*
+    
+    # Couche Command - Commandes CLI
+    - name: Command
+      collectors:
+        - type: directory
+          value: src/Command/.*
+        - type: extends
+          value: Symfony\\Component\\Console\\Command\\Command
+    
+    # Couche Validator - Contraintes de validation personnalisées
+    - name: Validator
+      collectors:
+        - type: directory
+          value: src/Validator/.*
+    
+    # Couche DTO (Data Transfer Object)
+    - name: DTO
+      collectors:
+        - type: directory
+          value: src/DTO/.*
+  
+  ruleset:
+    # Controller peut utiliser:
+    Controller:
+      - Service
+      - Form
+      - Entity
+      - Repository
+      - DTO
+      - Security
+      - Event
+    
+    # Service peut utiliser:
+    Service:
+      - Entity
+      - Repository
+      - DTO
+      - Event
+      - Validator
+    
+    # Repository peut utiliser:
+    Repository:
+      - Entity
+      - DTO
+    
+    # Entity peut utiliser:
+    Entity:
+      - DTO
+    
+    # Form peut utiliser:
+    Form:
+      - Entity
+      - DTO
+      - Validator
+    
+    # Event peut utiliser:
+    Event:
+      - Entity
+      - Service
+      - DTO
+    
+    # Security peut utiliser:
+    Security:
+      - Entity
+      - Repository
+      - Service
+    
+    # Command peut utiliser:
+    Command:
+      - Service
+      - Entity
+      - Repository
+      - DTO
+    
+    # Validator peut utiliser:
+    Validator:
+      - Entity
+      - Repository
+    
+    # DTO ne peut rien utiliser (objet de transfert pur)
+    DTO: []
+  
+  # Ignorer certaines violations si nécessaire
+  skip_violations:
+    # Exemple: ignorer les violations de Controller vers Command
+    # Controller:
+    #   - Command
+
+  # Configuration du formatage de sortie
+  formatters:
+    graphviz:
+      # Point groups: true pour regrouper les couches
+      point_to_groups: true
+      # Groupes de couches (optionnel)
+      groups: []
+      # Couches cachées (optionnel)
+      hidden_layers: []
