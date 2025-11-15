@@ -118,37 +118,16 @@ start: docker-start serve work-start ## 🚀 Démarre le projet (Docker + SGBD +
 stop: work-stop-silent ## 🛑 Arrête tous les services (Docker + Symfony + tracking)
 	@echo ""
 	@echo "$(YELLOW)🛑 Arrêt de tous les services...$(NC)"
-	@$(DOCKER_COMPOSE) $(DOCKER_PROFILES) down --remove-orphans 2>/dev/null
-	@echo "$(RED)  • Conteneurs Docker arrêtés$(NC)"
+	@if [ -f docker-compose.yml ]; then \
+		$(DOCKER_COMPOSE) $(DOCKER_PROFILES) down --remove-orphans 2>/dev/null || true; \
+		echo "$(RED)  • Conteneurs Docker arrêtés$(NC)"; \
+	fi
 	@$(SYMFONY_BIN) server:stop 2>/dev/null || true
 	@echo "$(RED)  • Serveur Symfony arrêté$(NC)"
+	@$(MAKE) work-badge 2>/dev/null || true
 	@echo ""
 	@echo "$(GREEN)✅ Tous les services sont arrêtés$(NC)"
 	@echo ""
-
-work-stop-silent: ## 🔇 Arrête le tracking sans affichage (usage interne)
-	@if [ -f var/time-tracking/work-start.txt ]; then \
-		START=$$(cat var/time-tracking/work-start.txt); \
-		END=$$(date +%s); \
-		DURATION=$$((END - START)); \
-		HOURS=$$((DURATION / 3600)); \
-		MINUTES=$$(((DURATION % 3600) / 60)); \
-		SECONDS=$$((DURATION % 60)); \
-		echo ""; \
-		echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
-		echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                  ║$(NC)"; \
-		echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
-		echo ""; \
-		echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
-		echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
-		echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
-		echo ""; \
-		mkdir -p var/time-tracking; \
-		echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
-		rm var/time-tracking/work-start.txt; \
-		echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
-		echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques$(NC)"; \
-	fi
 
 reset: stop cache-clear ## 🔄 Reset du projet (cache, arrêt services)
 	@echo "$(YELLOW)🔄 Projet réinitialisé$(NC)"
@@ -231,33 +210,80 @@ work-start: ## ⏱️  Démarre le tracking du temps de travail
 	@echo "  • make work-status  - Voir le temps écoulé"
 	@echo "  • make work-stop    - Terminer la session"
 	@echo "  • make work-stats   - Voir toutes les statistiques"
+	@if [ -f var/time-tracking/work-start.txt ]; then \
+		START=$$(cat var/time-tracking/work-start.txt); \
+		END=$$(date +%s); \
+		DURATION=$$((END - START)); \
+		HOURS=$$((DURATION / 3600)); \
+		MINUTES=$$(((DURATION % 3600) / 60)); \
+		SECONDS=$$((DURATION % 60)); \
+		echo ""; \
+		echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+		echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                  ║$(NC)"; \
+		echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+		echo ""; \
+		echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
+		echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
+		echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
+		echo ""; \
+		mkdir -p var/time-tracking; \
+		echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
+		rm var/time-tracking/work-start.txt; \
+		echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
+		echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques$(NC)"; \
+	fi
 
 work-stop: ## ⏹️  Arrête le tracking et affiche le temps écoulé
 	@if [ ! -f var/time-tracking/work-start.txt ]; then \
 		echo "$(YELLOW)⏸️  Aucune session de tracking en cours$(NC)"; \
 		exit 0; \
 	fi
-	@START=$(cat var/time-tracking/work-start.txt); \
-	END=$(date +%s); \
-	DURATION=$((END - START)); \
-	HOURS=$((DURATION / 3600)); \
-	MINUTES=$(((DURATION % 3600) / 60)); \
-	SECONDS=$((DURATION % 60)); \
+	@START=$$(cat var/time-tracking/work-start.txt); \
+	END=$$(date +%s); \
+	DURATION=$$((END - START)); \
+	HOURS=$$((DURATION / 3600)); \
+	MINUTES=$$(((DURATION % 3600) / 60)); \
+	SECONDS=$$((DURATION % 60)); \
 	echo ""; \
 	echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
 	echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                 ║$(NC)"; \
 	echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
 	echo ""; \
-	echo "$(GREEN)🕐 Début:$(NC)      $(date -r $START '+%Y-%m-%d %H:%M:%S')"; \
-	echo "$(GREEN)🕐 Fin:$(NC)        $(date '+%Y-%m-%d %H:%M:%S')"; \
-	echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      ${HOURS}h ${MINUTES}m ${SECONDS}s$(NC)"; \
+	echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
+	echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
+	echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
 	echo ""; \
 	mkdir -p var/time-tracking; \
-	echo "$(date -r $START '+%Y-%m-%d %H:%M:%S'),$(date '+%Y-%m-%d %H:%M:%S'),${DURATION},${HOURS}h ${MINUTES}m" >> var/time-tracking/history.csv; \
+	echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
 	rm var/time-tracking/work-start.txt; \
 	echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
 	echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques globales$(NC)"; \
 	echo ""
+
+work-stop-silent: ## 🔇 Arrête le tracking sans affichage (usage interne)
+	@if [ -f var/time-tracking/work-start.txt ]; then \
+		START=$$(cat var/time-tracking/work-start.txt); \
+		END=$$(date +%s); \
+		DURATION=$$((END - START)); \
+		HOURS=$$((DURATION / 3600)); \
+		MINUTES=$$(((DURATION % 3600) / 60)); \
+		SECONDS=$$((DURATION % 60)); \
+		echo ""; \
+		echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+		echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                  ║$(NC)"; \
+		echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+		echo ""; \
+		echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
+		echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
+		echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
+		echo ""; \
+		mkdir -p var/time-tracking; \
+		echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
+		rm var/time-tracking/work-start.txt; \
+		echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
+		echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques$(NC)"; \
+		echo ""; \
+	fi
 
 work-status: ## 📊 Affiche le statut de la session en cours
 	@if [ ! -f var/time-tracking/work-start.txt ]; then \
@@ -393,6 +419,46 @@ work-export: ## 💾 Exporte les données en CSV
 	cat var/time-tracking/history.csv >> $$EXPORT_FILE; \
 	echo "$(GREEN)✅ Données exportées dans: $$EXPORT_FILE$(NC)"; \
 	echo "$(CYAN)💡 Ouvrez ce fichier avec Excel, Google Sheets, etc.$(NC)"
+
+work-badge: ## 🏷️ Met à jour le badge de temps dans le README
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		echo "$(YELLOW)⚠️  Aucune donnée disponible$(NC)"; \
+		exit 0; \
+	fi
+	@TOTAL_SECONDS=$$(awk -F',' '{sum+=$$3} END {print sum}' var/time-tracking/history.csv 2>/dev/null || echo 0); \
+	TOTAL_HOURS=$$((TOTAL_SECONDS / 3600)); \
+	TOTAL_MINUTES=$$(((TOTAL_SECONDS % 3600) / 60)); \
+	BADGE_TEXT="$${TOTAL_HOURS}h%20$${TOTAL_MINUTES}m"; \
+	BADGE_URL="https://img.shields.io/badge/Temps%20de%20travail-$$BADGE_TEXT-blue?style=flat-square&logo=clockify"; \
+	if [ -f README.md ]; then \
+		if grep -q "<!-- WORK-TIME-BADGE -->" README.md; then \
+			awk -v url="$$BADGE_URL" ' \
+				/<!-- WORK-TIME-BADGE -->/ { \
+					print; \
+					print "![Temps de travail](" url ")"; \
+					in_badge=1; \
+					next; \
+				} \
+				/<!-- \/WORK-TIME-BADGE -->/ { \
+					print; \
+					in_badge=0; \
+					next; \
+				} \
+				!in_badge { print } \
+			' README.md > README.md.tmp && mv README.md.tmp README.md; \
+			echo "$(GREEN)✅ Badge mis à jour: $${TOTAL_HOURS}h $${TOTAL_MINUTES}m$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠️  Marqueur <!-- WORK-TIME-BADGE --> non trouvé dans README.md$(NC)"; \
+			echo "$(CYAN)💡 Ajoutez ces lignes dans votre README.md :$(NC)"; \
+			echo ""; \
+			echo "<!-- WORK-TIME-BADGE -->"; \
+			echo "![Temps de travail]($$BADGE_URL)"; \
+			echo "<!-- /WORK-TIME-BADGE -->"; \
+			echo ""; \
+		fi; \
+	else \
+		echo "$(YELLOW)⚠️  README.md non trouvé$(NC)"; \
+	fi
 
 git-stats: ## 📊 Affiche les statistiques Git du projet
 	@echo ""; \
