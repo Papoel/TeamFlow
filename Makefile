@@ -51,6 +51,8 @@ FRONTEND_ANGULAR := ng
 
 # Déclaration des targets comme PHONY
 .PHONY: help install start stop reset env-local \
+        work-start work-stop work-status work-stats work-today work-week work-reset work-export \
+        git-stats wakatime-today wakatime-week wakatime-status \
         composer-install composer-update composer-validate composer-audit composer-require composer-remove \
         docker-start docker-up docker-down docker-restart docker-logs docker-ps docker-build docker-clean docker-shell \
         docker-all docker-tools docker-mail docker-cache docker-queue docker-search docker-dev \
@@ -99,15 +101,54 @@ help: ## 🚀 Affiche cette aide
 install: composer-install db-create db-migrate assets-install ## 📦 Installation complète du projet
 	@echo "$(GREEN)✅ Installation terminée !$(NC)"
 
-start: docker-start serve ## 🚀 Démarre le projet (Docker + SGBD + serveur Symfony)
-	@echo "$(GREEN)🚀 Projet démarré !$(NC)"
+start: docker-start serve work-start ## 🚀 Démarre le projet (Docker + SGBD + serveur Symfony + tracking)
+	@echo ""
+	@echo "$(BOLD)$(GREEN)╔═══════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BOLD)$(GREEN)║                  🚀 PROJET DÉMARRÉ !                      ║$(NC)"
+	@echo "$(BOLD)$(GREEN)╚═══════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(CYAN)✅ Docker démarré$(NC)"
+	@echo "$(CYAN)✅ Serveur Symfony démarré$(NC)"
+	@echo "$(CYAN)✅ Tracking du temps activé$(NC)"
+	@echo ""
+	@echo "$(YELLOW)💡 Utilisez 'make work-status' pour voir le temps écoulé$(NC)"
+	@echo "$(YELLOW)💡 Utilisez 'make stop' pour tout arrêter$(NC)"
+	@echo ""
 
-stop: ## 🛑 Arrête tous les services (Docker + Symfony)
+stop: work-stop-silent ## 🛑 Arrête tous les services (Docker + Symfony + tracking)
+	@echo ""
 	@echo "$(YELLOW)🛑 Arrêt de tous les services...$(NC)"
-	$(DOCKER_COMPOSE) $(DOCKER_PROFILES) down --remove-orphans
-	@echo "$(RED)🛑 Conteneurs Docker arrêtés$(NC)"
-	$(SYMFONY_BIN) server:stop 2>/dev/null || true
+	@$(DOCKER_COMPOSE) $(DOCKER_PROFILES) down --remove-orphans 2>/dev/null
+	@echo "$(RED)  • Conteneurs Docker arrêtés$(NC)"
+	@$(SYMFONY_BIN) server:stop 2>/dev/null || true
+	@echo "$(RED)  • Serveur Symfony arrêté$(NC)"
+	@echo ""
 	@echo "$(GREEN)✅ Tous les services sont arrêtés$(NC)"
+	@echo ""
+
+work-stop-silent: ## 🔇 Arrête le tracking sans affichage (usage interne)
+	@if [ -f var/time-tracking/work-start.txt ]; then \
+		START=$$(cat var/time-tracking/work-start.txt); \
+		END=$$(date +%s); \
+		DURATION=$$((END - START)); \
+		HOURS=$$((DURATION / 3600)); \
+		MINUTES=$$(((DURATION % 3600) / 60)); \
+		SECONDS=$$((DURATION % 60)); \
+		echo ""; \
+		echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+		echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                  ║$(NC)"; \
+		echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+		echo ""; \
+		echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
+		echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
+		echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
+		echo ""; \
+		mkdir -p var/time-tracking; \
+		echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
+		rm var/time-tracking/work-start.txt; \
+		echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
+		echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques$(NC)"; \
+	fi
 
 reset: stop cache-clear ## 🔄 Reset du projet (cache, arrêt services)
 	@echo "$(YELLOW)🔄 Projet réinitialisé$(NC)"
@@ -166,6 +207,273 @@ env-local: ## 📝 Configure .env pour Docker et crée .env.local pour les varia
 	@echo "$(CYAN)💡 Symfony lit .env puis .env.local (qui surcharge .env)$(NC)"
 
 # =============================================================================
+# TRACKING DU TEMPS
+# =============================================================================
+
+## —— ⏱️  Tracking du temps ——————————————————————————————————————————————————
+
+work-start: ## ⏱️  Démarre le tracking du temps de travail
+	@mkdir -p var/time-tracking
+	@if [ -f var/time-tracking/work-start.txt ]; then \
+		echo "$(YELLOW)⚠️  Une session est déjà en cours !$(NC)"; \
+		START=$$(cat var/time-tracking/work-start.txt); \
+		NOW=$$(date +%s); \
+		DURATION=$$((NOW - START)); \
+		HOURS=$$((DURATION / 3600)); \
+		MINUTES=$$(((DURATION % 3600) / 60)); \
+		echo "$(CYAN)📊 Session en cours depuis: $${HOURS}h $${MINUTES}m$(NC)"; \
+		echo "$(CYAN)💡 Utilisez 'make work-stop' pour terminer la session actuelle$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$$(date +%s)" > var/time-tracking/work-start.txt
+	@echo "$(GREEN)⏱️  Session de travail démarrée à $$(date '+%H:%M:%S')$(NC)"
+	@echo "$(CYAN)💡 Commandes disponibles:$(NC)"
+	@echo "  • make work-status  - Voir le temps écoulé"
+	@echo "  • make work-stop    - Terminer la session"
+	@echo "  • make work-stats   - Voir toutes les statistiques"
+
+work-stop: ## ⏹️  Arrête le tracking et affiche le temps écoulé
+	@if [ ! -f var/time-tracking/work-start.txt ]; then \
+		echo "$(YELLOW)⏸️  Aucune session de tracking en cours$(NC)"; \
+		exit 0; \
+	fi
+	@START=$(cat var/time-tracking/work-start.txt); \
+	END=$(date +%s); \
+	DURATION=$((END - START)); \
+	HOURS=$((DURATION / 3600)); \
+	MINUTES=$(((DURATION % 3600) / 60)); \
+	SECONDS=$((DURATION % 60)); \
+	echo ""; \
+	echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+	echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                 ║$(NC)"; \
+	echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+	echo ""; \
+	echo "$(GREEN)🕐 Début:$(NC)      $(date -r $START '+%Y-%m-%d %H:%M:%S')"; \
+	echo "$(GREEN)🕐 Fin:$(NC)        $(date '+%Y-%m-%d %H:%M:%S')"; \
+	echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      ${HOURS}h ${MINUTES}m ${SECONDS}s$(NC)"; \
+	echo ""; \
+	mkdir -p var/time-tracking; \
+	echo "$(date -r $START '+%Y-%m-%d %H:%M:%S'),$(date '+%Y-%m-%d %H:%M:%S'),${DURATION},${HOURS}h ${MINUTES}m" >> var/time-tracking/history.csv; \
+	rm var/time-tracking/work-start.txt; \
+	echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
+	echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques globales$(NC)"; \
+	echo ""
+
+work-status: ## 📊 Affiche le statut de la session en cours
+	@if [ ! -f var/time-tracking/work-start.txt ]; then \
+		echo "$(YELLOW)⏸️  Aucune session en cours$(NC)"; \
+		echo "$(CYAN)💡 Démarrez une session avec: make work-start$(NC)"; \
+		exit 0; \
+	fi
+	@START=$$(cat var/time-tracking/work-start.txt); \
+	NOW=$$(date +%s); \
+	DURATION=$$((NOW - START)); \
+	HOURS=$$((DURATION / 3600)); \
+	MINUTES=$$(((DURATION % 3600) / 60)); \
+	SECONDS=$$((DURATION % 60)); \
+	echo ""; \
+	echo "$(BOLD)$(GREEN)⏱️  SESSION EN COURS$(NC)"; \
+	echo ""; \
+	echo "$(CYAN)🕐 Démarrée à:$(NC) $$(date -r $$START '+%H:%M:%S')"; \
+	echo "$(BOLD)$(YELLOW)⏱️  Temps écoulé:$(NC) $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
+	echo ""; \
+	echo "$(CYAN)💡 Terminez avec: make work-stop$(NC)"; \
+	echo ""
+
+work-stats: ## 📈 Affiche les statistiques de temps complètes
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		echo "$(YELLOW)⚠️  Aucune donnée disponible$(NC)"; \
+		echo "$(CYAN)💡 Démarrez votre première session avec: make work-start$(NC)"; \
+		exit 0; \
+	fi
+	@echo ""
+	@echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BOLD)$(CYAN)║         📈 STATISTIQUES DE TEMPS DE TRAVAIL               ║$(NC)"
+	@echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@TOTAL_SECONDS=$$(awk -F',' '{sum+=$$3} END {print sum}' var/time-tracking/history.csv 2>/dev/null || echo 0); \
+	TOTAL_HOURS=$$((TOTAL_SECONDS / 3600)); \
+	TOTAL_MINUTES=$$(((TOTAL_SECONDS % 3600) / 60)); \
+	SESSION_COUNT=$$(wc -l < var/time-tracking/history.csv | tr -d ' '); \
+	AVG_MINUTES=$$((TOTAL_SECONDS / SESSION_COUNT / 60)); \
+	AVG_HOURS=$$((AVG_MINUTES / 60)); \
+	AVG_MINS=$$((AVG_MINUTES % 60)); \
+	echo "$(YELLOW)📊 Sessions totales:$(NC)        $$SESSION_COUNT"; \
+	echo "$(YELLOW)⏱️  Temps total:$(NC)             $${TOTAL_HOURS}h $${TOTAL_MINUTES}m"; \
+	echo "$(YELLOW)📅 Moyenne par session:$(NC)     $${AVG_HOURS}h $${AVG_MINS}m"; \
+	echo ""; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(CYAN)📋 Dernières sessions:$(NC)"; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo ""; \
+	tail -n 10 var/time-tracking/history.csv | while IFS=',' read -r start_date end_date duration formatted; do \
+		echo "  $(GREEN)•$(NC) $$start_date → $$formatted"; \
+	done; \
+	echo ""
+	@if [ -f var/time-tracking/work-start.txt ]; then \
+		echo "$(YELLOW)⚠️  Une session est actuellement en cours$(NC)"; \
+		echo "$(CYAN)💡 Utilisez 'make work-status' pour voir les détails$(NC)"; \
+		echo ""; \
+	fi
+
+work-today: ## 📅 Affiche les statistiques du jour
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		echo "$(YELLOW)⚠️  Aucune donnée disponible$(NC)"; \
+		exit 0; \
+	fi
+	@TODAY=$$(date '+%Y-%m-%d'); \
+	echo ""; \
+	echo "$(BOLD)$(CYAN)📅 Statistiques du $${TODAY}$(NC)"; \
+	echo ""; \
+	TOTAL_TODAY=0; \
+	COUNT=0; \
+	while IFS=',' read -r start_date end_date duration formatted; do \
+		if echo "$$start_date" | grep -q "$$TODAY"; then \
+			echo "  $(GREEN)•$(NC) $$start_date → $$formatted"; \
+			TOTAL_TODAY=$$((TOTAL_TODAY + duration)); \
+			COUNT=$$((COUNT + 1)); \
+		fi; \
+	done < var/time-tracking/history.csv; \
+	if [ $$COUNT -eq 0 ]; then \
+		echo "$(YELLOW)  Aucune session aujourd'hui$(NC)"; \
+	else \
+		HOURS=$$((TOTAL_TODAY / 3600)); \
+		MINUTES=$$(((TOTAL_TODAY % 3600) / 60)); \
+		echo ""; \
+		echo "$(YELLOW)📊 Total aujourd'hui:$(NC) $${HOURS}h $${MINUTES}m ($$COUNT sessions)"; \
+	fi; \
+	echo ""
+
+work-week: ## 📅 Affiche les statistiques de la semaine
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		echo "$(YELLOW)⚠️  Aucune donnée disponible$(NC)"; \
+		exit 0; \
+	fi
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)📅 Statistiques de la semaine$(NC)"; \
+	echo ""; \
+	WEEK_START=$$(date -v-mon '+%Y-%m-%d' 2>/dev/null || date -d 'last monday' '+%Y-%m-%d' 2>/dev/null || date '+%Y-%m-%d'); \
+	TOTAL_WEEK=0; \
+	COUNT=0; \
+	while IFS=',' read -r start_date end_date duration formatted; do \
+		SESSION_DATE=$$(echo "$$start_date" | cut -d' ' -f1); \
+		if [ "$$SESSION_DATE" \>= "$$WEEK_START" ]; then \
+			echo "  $(GREEN)•$(NC) $$start_date → $$formatted"; \
+			TOTAL_WEEK=$$((TOTAL_WEEK + duration)); \
+			COUNT=$$((COUNT + 1)); \
+		fi; \
+	done < var/time-tracking/history.csv; \
+	if [ $$COUNT -eq 0 ]; then \
+		echo "$(YELLOW)  Aucune session cette semaine$(NC)"; \
+	else \
+		HOURS=$$((TOTAL_WEEK / 3600)); \
+		MINUTES=$$(((TOTAL_WEEK % 3600) / 60)); \
+		echo ""; \
+		echo "$(YELLOW)📊 Total cette semaine:$(NC) $${HOURS}h $${MINUTES}m ($$COUNT sessions)"; \
+	fi; \
+	echo ""
+
+work-reset: ## 🗑️  Réinitialise les statistiques de temps
+	@echo "$(YELLOW)⚠️  Êtes-vous sûr de vouloir supprimer TOUTES les données de tracking ? [y/N]$(NC)"
+	@read -r confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		rm -rf var/time-tracking; \
+		echo "$(GREEN)✅ Toutes les données ont été supprimées$(NC)"; \
+	else \
+		echo "$(CYAN)❌ Opération annulée$(NC)"; \
+	fi
+
+work-export: ## 💾 Exporte les données en CSV
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		echo "$(RED)❌ Aucune donnée à exporter$(NC)"; \
+		exit 1; \
+	fi
+	@EXPORT_FILE="work-tracking-export-$$(date +%Y%m%d-%H%M%S).csv"; \
+	echo "Date Début,Date Fin,Durée (secondes),Durée formatée" > $$EXPORT_FILE; \
+	cat var/time-tracking/history.csv >> $$EXPORT_FILE; \
+	echo "$(GREEN)✅ Données exportées dans: $$EXPORT_FILE$(NC)"; \
+	echo "$(CYAN)💡 Ouvrez ce fichier avec Excel, Google Sheets, etc.$(NC)"
+
+git-stats: ## 📊 Affiche les statistiques Git du projet
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+	echo "$(BOLD)$(CYAN)║              📊 STATISTIQUES GIT DU PROJET               ║$(NC)"; \
+	echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+	echo ""; \
+	FIRST_COMMIT=$$(git log --reverse --format='%ai' 2>/dev/null | head -n1 | cut -d' ' -f1); \
+	LAST_COMMIT=$$(git log -1 --format='%ai' 2>/dev/null | cut -d' ' -f1); \
+	COMMIT_COUNT=$$(git rev-list --count HEAD 2>/dev/null); \
+	CONTRIBUTORS=$$(git shortlog -sn --all 2>/dev/null | wc -l | tr -d ' '); \
+	BRANCHES=$$(git branch -a 2>/dev/null | wc -l | tr -d ' '); \
+	FILES=$$(git ls-files 2>/dev/null | wc -l | tr -d ' '); \
+	echo "$(YELLOW)📅 Premier commit:$(NC)      $$FIRST_COMMIT"; \
+	echo "$(YELLOW)📅 Dernier commit:$(NC)      $$LAST_COMMIT"; \
+	echo "$(YELLOW)📝 Nombre de commits:$(NC)   $$COMMIT_COUNT"; \
+	echo "$(YELLOW)👥 Contributeurs:$(NC)       $$CONTRIBUTORS"; \
+	echo "$(YELLOW)🌿 Branches:$(NC)            $$BRANCHES"; \
+	echo "$(YELLOW)📄 Fichiers suivis:$(NC)     $$FILES"; \
+	echo ""; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(CYAN)👤 Top 5 des contributeurs:$(NC)"; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo ""; \
+	git shortlog -sn --all 2>/dev/null | head -n 5 | while read count author; do \
+		echo "  $(GREEN)$$count commits$(NC) - $$author"; \
+	done; \
+	echo ""; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(CYAN)📈 Activité récente (7 derniers jours):$(NC)"; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo ""; \
+	git log --since="7 days ago" --format="%ad - %s" --date=short 2>/dev/null | head -n 10 || echo "  $(YELLOW)Aucun commit récent$(NC)"; \
+	echo ""
+
+wakatime-today: ## ⏱️  Affiche les stats WakaTime du jour
+	@if ! command -v wakatime-cli > /dev/null 2>&1; then \
+		echo "$(RED)❌ WakaTime CLI n'est pas installé$(NC)"; \
+		echo ""; \
+		echo "$(CYAN)📦 Installation:$(NC)"; \
+		echo "  • macOS:    brew install wakatime-cli"; \
+		echo "  • Linux:    pip install wakatime"; \
+		echo "  • Windows:  scoop install wakatime-cli"; \
+		echo ""; \
+		echo "$(CYAN)💡 Puis configurez votre API key:$(NC)"; \
+		echo "  wakatime-cli --config"; \
+		echo ""; \
+		echo "$(CYAN)🔗 Plus d'infos: https://wakatime.com/$(NC)"; \
+		exit 1; \
+	fi
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)⏱️  WakaTime - Statistiques du jour$(NC)"; \
+	echo ""; \
+	wakatime-cli --today
+
+wakatime-week: ## 📅 Affiche les stats WakaTime de la semaine
+	@if ! command -v wakatime-cli > /dev/null 2>&1; then \
+		echo "$(RED)❌ WakaTime CLI n'est pas installé$(NC)"; \
+		echo "$(CYAN)💡 Voir: make wakatime-today pour les instructions$(NC)"; \
+		exit 1; \
+	fi
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)📅 WakaTime - Statistiques de la semaine$(NC)"; \
+	echo ""; \
+	wakatime-cli --today --print
+
+wakatime-status: ## 📊 Affiche le statut WakaTime
+	@if ! command -v wakatime-cli > /dev/null 2>&1; then \
+		echo "$(RED)❌ WakaTime CLI n'est pas installé$(NC)"; \
+		echo "$(CYAN)💡 Voir: make wakatime-today pour les instructions$(NC)"; \
+		exit 1; \
+	fi
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)📊 WakaTime - Statut$(NC)"; \
+	echo ""; \
+	wakatime-cli --today --print; \
+	echo ""; \
+	echo "$(CYAN)🔗 Dashboard complet: https://wakatime.com/dashboard$(NC)"; \
+	echo ""
+
+# =============================================================================
 # GESTION COMPOSER
 # =============================================================================
 
@@ -198,11 +506,16 @@ composer-remove: ## ➖ Supprime une dépendance (ex: make composer-remove packa
 ## —— 🐳 Docker ————————————————————————————————————————————————————————————————
 
 docker-start: ## 🚀 Démarre DB + Adminer (configuration par défaut)
-	$(DOCKER_COMPOSE) --profile tools up -d
-	@echo "$(GREEN)✅ Services démarrés$(NC)"
-	@echo "$(CYAN)📊 Database: localhost:5432$(NC)"
-	@echo "$(CYAN)📊 Adminer: http://localhost:8080$(NC)"
-	@echo "$(CYAN)📊 pgAdmin: http://localhost:5050$(NC)"
+	@if [ -f docker-compose.yml ]; then \
+		$(DOCKER_COMPOSE) --profile tools up -d; \
+		echo "$(GREEN)✅ Services démarrés$(NC)"; \
+		echo "$(CYAN)📊 Database: localhost:5432$(NC)"; \
+		echo "$(CYAN)📊 Adminer: http://localhost:8080$(NC)"; \
+		echo "$(CYAN)📊 pgAdmin: http://localhost:5050$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ Aucun docker-compose.yml trouvé : mode sans Docker activé.$(NC)"; \
+		echo "$(YELLOW)⚠ SQLite sera utilisé automatiquement.$(NC)"; \
+	fi
 
 docker-up: ## ⬆️  Démarre uniquement la base de données
 	$(DOCKER_COMPOSE) up -d
