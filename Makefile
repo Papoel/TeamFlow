@@ -63,7 +63,7 @@ FRONTEND_ANGULAR := ng
         lint lint-yaml lint-twig lint-php lint-container fix-php \
         phpstan phpstan-baseline phpmd phpcpd phpcs phpcbf phpmetrics deptrac phpinsights qa qa-full \
         serve console routes router-match debug-container debug-events debug-env debug-config messenger-consume \
-        make-controller make-entity make-form make-crud make-command make-migration make-test make-voter make-subscriber make-auth \
+        make-controller make-entity make-form make-crud make-command migration make-test make-voter make-subscriber make-auth \
         clean clean-vendor clean-all clean-logs clean-cache-all \
         security-check security-audit \
         deploy-prod optimize-prod \
@@ -686,12 +686,25 @@ docker-dev: docker-mail docker-cache ## 🛠️  Configuration recommandée pour
 ## —— 💾 Base de données ——————————————————————————————————————————————————————
 
 db-create: ## ➕ Crée la base de données
-	$(CONSOLE) doctrine:database:create --if-not-exists
+	@mkdir -p var/database
+	@$(CONSOLE) doctrine:database:create --if-not-exists 2>/dev/null || true
 	@echo "$(GREEN)✅ Base de données créée$(NC)"
+	@$(CONSOLE) doctrine:schema:update --force
+	@echo "$(GREEN)✅ Schéma de la base de données mis à jour$(NC)"
+
+db-test: ## ➕ Crée la base de données test
+	@$(CONSOLE) doctrine:database:create --if-not-exists --env=test 2>/dev/null || true
+	@echo "$(GREEN)✅ Base de données test créée$(NC)"
+	@$(CONSOLE) doctrine:schema:update --force --env=test
+	@echo "$(GREEN)✅ Schéma de la base de données test mis à jour$(NC)"
 
 db-drop: ## ➖ Supprime la base de données
 	$(CONSOLE) doctrine:database:drop --force --if-exists
 	@echo "$(RED)🗑️  Base de données supprimée$(NC)"
+
+migration: ## 📝 Génère une nouvelle migration en demandant l'env (dev/test/prod)
+	$(CONSOLE) make:migration
+	@echo "$(GREEN)✅ Migration générée$(NC)"
 
 db-migrate: ## 🔄 Exécute les migrations
 	$(CONSOLE) doctrine:migrations:migrate --no-interaction
