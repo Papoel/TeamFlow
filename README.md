@@ -1,7 +1,7 @@
 # TEAMFLOW
 
 <!-- WORK-TIME-BADGE -->
-![Temps de travail](https://img.shields.io/badge/Temps%20de%20travail-0h%2011m-blue?style=flat-square&logo=clockify)
+![Temps de travail](https://img.shields.io/badge/Temps%20de%20travail-4h%2027m-blue?style=flat-square&logo=clockify)
 <!-- /WORK-TIME-BADGE -->
 
 Application de gestion des plannings, activités, qualifications et présences des équipes.
