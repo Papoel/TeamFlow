@@ -686,7 +686,8 @@ docker-dev: docker-mail docker-cache ## 🛠️  Configuration recommandée pour
 ## —— 💾 Base de données ——————————————————————————————————————————————————————
 
 db-create: ## ➕ Crée la base de données
-	$(CONSOLE) doctrine:database:create --if-not-exists
+	@mkdir -p var/database
+	@$(CONSOLE) doctrine:database:create --if-not-exists 2>/dev/null || true
 	@echo "$(GREEN)✅ Base de données créée$(NC)"
 
 db-drop: ## ➖ Supprime la base de données
