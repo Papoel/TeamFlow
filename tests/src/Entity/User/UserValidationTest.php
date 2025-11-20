@@ -183,7 +183,7 @@ class UserValidationTest extends KernelTestCase
         $errors = $this->validator->validate($user);
 
         $this->assertGreaterThan(0, $errors->count());
-        $this->assertEquals('Le mot de passe est obligatoire', $errors[0]->getMessage());
+        $this->assertEquals('Veuillez saisir un mot de passe.', $errors[0]->getMessage());
     }
 
     // Test 14 : Vérifie qu'une erreur est générée si le mot de passe est trop court
@@ -198,7 +198,10 @@ class UserValidationTest extends KernelTestCase
         $errors = $this->validator->validate($user);
 
         $this->assertGreaterThan(0, $errors->count());
-        $this->assertStringContainsString('au moins 8 caractères', $errors[0]->getMessage());
+        $this->assertStringContainsString(
+            'Le mot de passe doit contenir au moins une lettre minuscule, une lettre majuscule et un chiffre.',
+            $errors[0]->getMessage()
+        );
     }
 
     // Test 15 : Vérifie qu'une erreur est générée si le rôle est invalide

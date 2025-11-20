@@ -2,6 +2,7 @@
 
 namespace App\Entity\User;
 
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use App\Repository\User\UserRepository;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -37,7 +38,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /**
      * @var list<string> The user roles
      */
-    #[ORM\Column]
+    #[ORM\Column(type: Types::SIMPLE_ARRAY)]
     #[Assert\NotNull(message: 'Les rôles ne peuvent pas être null')]
     #[Assert\All([
         new Assert\Choice(
@@ -47,16 +48,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     ])]
     private array $roles = [];
 
-    /**
-     * @var string The hashed password
-     */
-    #[ORM\Column]
-    #[Assert\NotBlank(message: 'Le mot de passe est obligatoire')]
+    #[ORM\Column(type: Types::STRING)]
+    #[Assert\NotBlank(message: 'Veuillez saisir un mot de passe.')]
+    #[Assert\Regex(
+        pattern: '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/',
+        message: 'Le mot de passe doit contenir au moins une lettre minuscule, une lettre majuscule et un chiffre.'
+    )]
     #[Assert\Length(
-        min: 8,
-        minMessage: 'Le mot de passe doit contenir au moins {{ limit }} caractères'
+        min: 4,
+        max: 255,
+        minMessage: 'Le mot de passe doit contenir au moins {{ limit }} caractères.',
+        maxMessage: 'Le mot de passe doit contenir au maximum {{ limit }} caractères.'
     )]
     private ?string $password = null;
+
+    public function __construct()
+    {
+        // Get ROLE_INTERVENANT by default
+        $this->roles = ['ROLE_INTERVENANT'];
+    }
 
     public function getId(): ?int
     {
@@ -91,8 +101,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getRoles(): array
     {
         $roles = $this->roles;
-        // guarantee every user at least has ROLE_USER
-        $roles[] = 'ROLE_USER';
 
         return array_unique($roles);
     }

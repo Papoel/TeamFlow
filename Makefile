@@ -210,28 +210,6 @@ work-start: ## ⏱️  Démarre le tracking du temps de travail
 	@echo "  • make work-status  - Voir le temps écoulé"
 	@echo "  • make work-stop    - Terminer la session"
 	@echo "  • make work-stats   - Voir toutes les statistiques"
-	@if [ -f var/time-tracking/work-start.txt ]; then \
-		START=$$(cat var/time-tracking/work-start.txt); \
-		END=$$(date +%s); \
-		DURATION=$$((END - START)); \
-		HOURS=$$((DURATION / 3600)); \
-		MINUTES=$$(((DURATION % 3600) / 60)); \
-		SECONDS=$$((DURATION % 60)); \
-		echo ""; \
-		echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
-		echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                  ║$(NC)"; \
-		echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
-		echo ""; \
-		echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
-		echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
-		echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
-		echo ""; \
-		mkdir -p var/time-tracking; \
-		echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
-		rm var/time-tracking/work-start.txt; \
-		echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
-		echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques$(NC)"; \
-	fi
 
 work-stop: ## ⏹️  Arrête le tracking et affiche le temps écoulé
 	@if [ ! -f var/time-tracking/work-start.txt ]; then \
@@ -564,6 +542,36 @@ composer-require: ## ➕ Ajoute une dépendance (ex: make composer-require packa
 
 composer-remove: ## ➖ Supprime une dépendance (ex: make composer-remove package=vendor/package)
 	$(COMPOSER) remove $(package)
+
+# =============================================================================
+# COMMANDE SYMFONY
+# =============================================================================
+
+## —— 🎸 Symfony ———————————————————————————————————————————————————————————————
+
+controller: ## 🎯 Crée un nouveau contrôleur (ex: make controller name=HomeController)
+	@echo "$(BOLD)$(CYAN)🔧 Création du contrôleur...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:controller $(name)$(NC)"
+	@echo ""
+	@bin/console make:controller $(name)
+
+security: ## 🎯 Crée un système d'authentification (ex: make auth)
+	@echo "$(BOLD)$(CYAN)🔐 Création du système d'authentification avec formulaire...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:security:form-login$(NC)"
+	@echo ""
+	@bin/console make:security:form-login
+	
+form: ## 🎯 Crée un formulaire (ex: make form name=MyForm)
+	@echo "$(BOLD)$(CYAN)📝 Création du formulaire...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:form $(name)$(NC)"
+	@echo ""
+	@bin/console make:form $(name)
+
+crud: ## 🎯 Crée le CRUD d'une entité (ex: make crud entity=Article)
+	@echo "$(BOLD)$(CYAN)📝 Création du CRUD...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:crud $(entity)$(NC)"
+	@echo ""
+	@bin/console make:crud $(entity)
 
 # =============================================================================
 # GESTION DOCKER
