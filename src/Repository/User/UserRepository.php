@@ -45,7 +45,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
 
     /**
      * Sauvegarde un utilisateur
-     * 
+     *
      * @throws UnsupportedUserException Si l'objet n'est pas une instance de User
      */
     public function save(PasswordAuthenticatedUserInterface $user): void
@@ -60,7 +60,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
 
     /**
      * Supprime un utilisateur
-     * 
+     *
      * @throws UnsupportedUserException Si l'objet n'est pas une instance de User
      */
     public function remove(PasswordAuthenticatedUserInterface $user): void

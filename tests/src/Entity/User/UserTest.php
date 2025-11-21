@@ -41,13 +41,16 @@ class UserTest extends TestCase
         $this->assertEquals($nni, $user->getUserIdentifier());
     }
 
-    // Test 4 : UserIdentifier retourne une chaîne même si NNI est null
+    // Test 4 : UserIdentifier lance une exception si NNI est null
     #[Test]
-    public function getUserIdentifierReturnsEmptyStringWhenNniIsNull(): void
+    public function getUserIdentifierThrowsExceptionWhenNniIsNull(): void
     {
         $user = new User();
 
-        $this->assertEquals('', $user->getUserIdentifier());
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('NNI cannot be null or empty');
+
+        $user->getUserIdentifier();
     }
 
     // Test 5 : Getter/Setter Password

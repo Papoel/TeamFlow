@@ -6,6 +6,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use ApiPlatform\Metadata\ApiResource;
 use App\Repository\User\UserRepository;
+use LogicException;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
@@ -23,7 +24,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    private ?int $id = null;
+    private ?int $id = null; // @phpstan-ignore property.unusedType (Doctrine auto-generates the ID)
 
     #[ORM\Column(length: 8, unique: true)]
     #[Assert\NotBlank(message: 'Le NNI est obligatoire')]
@@ -91,10 +92,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * A visual identifier that represents this user.
      *
      * @see UserInterface
+     * @return non-empty-string
      */
     public function getUserIdentifier(): string
     {
-        return (string) $this->nni;
+        if ($this->nni === null || $this->nni === '') {
+            throw new LogicException('NNI cannot be null or empty');
+        }
+
+        return $this->nni;
     }
 
     /**
@@ -138,7 +144,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function __serialize(): array
     {
         $data = (array) $this;
-        $data["\0" . self::class . "\0password"] = hash('crc32c', $this->password);
+        $data["\0" . self::class . "\0password"] = hash('crc32c', $this->password ?? '');
 
         return $data;
     }

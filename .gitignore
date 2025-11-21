@@ -25,3 +25,6 @@
 
 ###> bruno ###
 /JWT Api_Platform
+
+# Sauvegardes locales du tracking de temps
+/.backups/

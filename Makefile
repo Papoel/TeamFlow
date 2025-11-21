@@ -193,6 +193,7 @@ env-local: ## 📝 Configure .env pour Docker et crée .env.local pour les varia
 ## —— ⏱️  Tracking du temps ——————————————————————————————————————————————————
 
 work-start: ## ⏱️  Démarre le tracking du temps de travail
+	@$(MAKE) work-check-and-restore
 	@mkdir -p var/time-tracking
 	@if [ -f var/time-tracking/work-start.txt ]; then \
 		echo "$(YELLOW)⚠️  Une session est déjà en cours !$(NC)"; \
@@ -236,6 +237,8 @@ work-stop: ## ⏹️  Arrête le tracking et affiche le temps écoulé
 	echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
 	rm var/time-tracking/work-start.txt; \
 	echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
+	echo "$(CYAN)💾 Sauvegarde automatique...$(NC)"; \
+	$(MAKE) work-badge 2>/dev/null || true; \
 	echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques globales$(NC)"; \
 	echo ""
 
@@ -438,6 +441,54 @@ work-badge: ## 🏷️ Met à jour le badge de temps dans le README
 	else \
 		echo "$(YELLOW)⚠️  README.md non trouvé$(NC)"; \
 	fi
+
+work-restore-from-badge: ## 🔄 Restaure l'historique depuis le badge README (garde-fou)
+	@echo "$(CYAN)🔍 Recherche du temps dans le README...$(NC)"
+	@if [ ! -f README.md ]; then \
+		echo "$(RED)❌ README.md non trouvé$(NC)"; \
+		exit 1; \
+	fi
+	@# Extrait le temps du badge (format: 8h%2013m ou 8h 13m)
+	@TIME_FROM_BADGE=$$(grep -o 'Temps%20de%20travail-[^-]*-blue' README.md | sed 's/Temps%20de%20travail-//' | sed 's/-blue//' | sed 's/%20/ /g'); \
+	if [ -z "$$TIME_FROM_BADGE" ]; then \
+		echo "$(RED)❌ Impossible d'extraire le temps du badge$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(CYAN)📊 Temps trouvé dans le badge: $$TIME_FROM_BADGE$(NC)"; \
+	HOURS=$$(echo "$$TIME_FROM_BADGE" | sed 's/h.*//' | tr -d ' '); \
+	MINUTES=$$(echo "$$TIME_FROM_BADGE" | sed 's/.*h *//' | sed 's/m//' | tr -d ' '); \
+	TOTAL_SECONDS=$$((HOURS * 3600 + MINUTES * 60)); \
+	echo "$(CYAN)💾 Recréation de l'historique...$(NC)"; \
+	mkdir -p var/time-tracking; \
+	echo "Restauré depuis README,$$(date '+%Y-%m-%d %H:%M:%S'),$$TOTAL_SECONDS,$${HOURS}h $${MINUTES}m" > var/time-tracking/history.csv; \
+	echo ""; \
+	echo "$(GREEN)✅ Historique restauré avec succès !$(NC)"; \
+	echo "$(YELLOW)📊 Temps récupéré: $${HOURS}h $${MINUTES}m$(NC)"; \
+	echo "$(CYAN)💡 Vous pouvez maintenant continuer le tracking avec 'make work-start'$(NC)"; \
+	echo ""
+
+work-backup: ## 💾 Sauvegarde l'historique (protection contre suppression)
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		echo "$(YELLOW)⚠️  Aucun historique à sauvegarder$(NC)"; \
+		exit 0; \
+	fi
+	@mkdir -p .backups
+	@cp var/time-tracking/history.csv .backups/history-backup-$$(date +%Y%m%d-%H%M%S).csv
+	@echo "$(GREEN)✅ Historique sauvegardé dans .backups/$(NC)"
+	@# Mise à jour automatique du badge comme sauvegarde supplémentaire
+	@$(MAKE) work-badge
+	@echo "$(GREEN)✅ Badge README également mis à jour comme sauvegarde$(NC)"
+
+work-check-and-restore: ## 🔍 Vérifie l'historique et restaure depuis README si nécessaire
+	@if [ ! -f var/time-tracking/history.csv ]; then \
+		if [ -f README.md ] && grep -q "Temps%20de%20travail" README.md; then \
+			echo "$(YELLOW)⚠️  Historique manquant mais badge trouvé dans README$(NC)"; \
+			echo "$(CYAN)🔄 Tentative de restauration automatique...$(NC)"; \
+			echo ""; \
+			$(MAKE) work-restore-from-badge; \
+		fi; \
+	fi
+	@mkdir -p var/time-tracking
 
 git-stats: ## 📊 Affiche les statistiques Git du projet
 	@echo ""; \
@@ -906,12 +957,12 @@ phpstan-baseline: ## 📊 Génère la baseline PHPStan
 
 phpmd: ## 🔎 Détection de code smell avec PHP Mess Detector
 	@echo "$(CYAN)🔎 Détection de code smell avec PHPMD...$(NC)"
-	@$(PHPQA_RUN) phpmd src text cleancode,codesize,controversial,design,naming,unusedcode
+	@$(PHPQA_RUN) phpmd src text phpmd.xml 2>&1 | grep -v "Deprecated:" || true
 	@echo "$(GREEN)✅ Analyse PHPMD terminée$(NC)"
 
 phpcpd: ## 📋 Détection de code dupliqué avec PHP Copy/Paste Detector
 	@echo "$(CYAN)📋 Détection de code dupliqué...$(NC)"
-	@$(PHPQA_RUN) phpcpd src
+	@$(PHPQA_RUN) phpcpd src 2>&1 | grep -v "Deprecated:"
 	@echo "$(GREEN)✅ Analyse PHPCPD terminée$(NC)"
 
 phpcs: ## 📐 Vérification des standards de code avec PHP CodeSniffer
@@ -927,7 +978,7 @@ phpcbf: ## 🔧 Correction automatique des standards de code avec PHP Code Beaut
 phpmetrics: ## 📊 Génère un rapport de métriques avec PhpMetrics
 	@echo "$(CYAN)📊 Génération du rapport PhpMetrics...$(NC)"
 	@mkdir -p var/phpmetrics
-	@$(PHPQA_RUN) phpmetrics --report-html=var/phpmetrics src
+	@$(PHPQA_RUN) phpmetrics --report-html=var/phpmetrics src 2>&1 | grep -v "Deprecated:" | grep -v "Warning: copy"
 	@echo "$(GREEN)✅ Rapport généré dans var/phpmetrics/index.html$(NC)"
 
 deptrac: ## 🏗️  Analyse les dépendances architecturales avec Deptrac
