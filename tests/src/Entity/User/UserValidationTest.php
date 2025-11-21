@@ -3,12 +3,20 @@
 namespace App\Tests\Entity\User;
 
 use App\Entity\User\User;
+use App\Tests\Traits\InteractsWithUsers;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+/**
+ * Tests de validation pour l'entité User
+ * 
+ * Note: Ce test utilise InteractsWithUsers pour les cas valides uniquement.
+ * Les cas invalides sont créés manuellement pour tester les contraintes de validation.
+ */
 class UserValidationTest extends KernelTestCase
 {
+    use InteractsWithUsers;
     private ValidatorInterface $validator;
 
     protected function setUp(): void
@@ -29,10 +37,8 @@ class UserValidationTest extends KernelTestCase
     #[Test]
     public function validUserPassesValidation(): void
     {
-        $user = new User();
-        $user->setNni('A12345');
-        $user->setPassword('SecurePassword123');
-        $user->setRoles(['ROLE_MANAGER']);
+        // Utilise le helper pour créer un manager (sans persister)
+        $user = $this->createManager('A12345', 'SecurePassword123', persist: false);
 
         $errors = $this->validator->validate($user);
 
@@ -44,10 +50,8 @@ class UserValidationTest extends KernelTestCase
     public function validUserWithIntervenantRolePassesValidation(): void
     {
         $nni = sprintf('B%05d', random_int(0, 99999));
-        $user = new User();
-        $user->setNni($nni);
-        $user->setPassword('SecurePassword456');
-        $user->setRoles(['ROLE_INTERVENANT']);
+        // Utilise le helper pour créer un intervenant (sans persister)
+        $user = $this->createIntervenant($nni, 'SecurePassword456', persist: false);
 
         $errors = $this->validator->validate($user);
 
@@ -58,10 +62,13 @@ class UserValidationTest extends KernelTestCase
     #[Test]
     public function userWithMultipleRolesPassesValidation(): void
     {
-        $user = new User();
-        $user->setNni('C11111');
-        $user->setPassword('SecurePassword789');
-        $user->setRoles(['ROLE_MANAGER', 'ROLE_INTERVENANT']);
+        // Utilise le helper avec des rôles personnalisés (sans persister)
+        $user = $this->createUserWithRoles(
+            ['ROLE_MANAGER', 'ROLE_INTERVENANT'],
+            'C11111',
+            'SecurePassword789',
+            persist: false
+        );
 
         $errors = $this->validator->validate($user);
 
@@ -72,11 +79,10 @@ class UserValidationTest extends KernelTestCase
     #[Test]
     public function userWithEmptyRolesPassesValidation(): void
     {
-        // getRoles() ajoutera automatiquement ROLE_USER
-        $user = new User();
-        $user->setNni('D22222');
-        $user->setPassword('SecurePassword000');
-        $user->setRoles([]); // ✅ Tableau vide = ROLE_USER sera ajouté automatiquement
+        // getRoles() ajoutera automatiquement ROLE_INTERVENANT
+        // Utilise le helper (sans persister)
+        $user = $this->createUser('D22222', 'SecurePassword000', persist: false);
+        $user->setRoles([]); // Réinitialise les rôles pour tester le comportement
 
         $errors = $this->validator->validate($user);
 

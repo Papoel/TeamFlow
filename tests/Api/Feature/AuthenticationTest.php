@@ -2,7 +2,8 @@
 
 namespace App\Tests\Api\Feature;
 
-use App\Entity\User\User;
+use App\Tests\Traits\RefreshDatabase;
+use App\Tests\Traits\InteractsWithUsers;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\HttpFoundation\Request;
 use ApiPlatform\Symfony\Bundle\Test\ApiTestCase;
@@ -10,34 +11,18 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticationTest extends ApiTestCase
 {
+    use RefreshDatabase;
+    use InteractsWithUsers;
+
     protected static ?bool $alwaysBootKernel = true;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Nettoyer la base de données avant chaque test
-        $entityManager = static::getContainer()->get('doctrine')->getManager();
-        $entityManager->createQuery('DELETE FROM App\Entity\User\User')->execute();
-        $entityManager->clear();
-    }
 
     #[Test]
     public function apiLoginSuccessfullyAuthenticatesUser(): void
     {
+        // Créer un utilisateur de test en 1 ligne
+        $user = $this->createUser('A34123', '$3CR3T');
+
         $client = static::createClient();
-        $container = static::getContainer();
-
-        // Créer un utilisateur de test
-        $user = new User();
-        $user->setNni('A34123');
-        $hashedPassword = $container->get('security.user_password_hasher')
-            ->hashPassword($user, '$3CR3T');
-        $user->setPassword($hashedPassword);
-
-        $manager = $container->get('doctrine')->getManager();
-        $manager->persist($user);
-        $manager->flush();
 
         // Étape 1 : Récupérer un token JWT
         $response = $client->request(Request::METHOD_POST, '/api/auth/login_check', [

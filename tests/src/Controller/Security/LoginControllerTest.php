@@ -2,40 +2,27 @@
 
 namespace App\Tests;
 
-use App\Entity\User\User;
+use App\Tests\Traits\RefreshDatabase;
+use App\Tests\Traits\InteractsWithUsers;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class LoginControllerTest extends WebTestCase
 {
+    use RefreshDatabase;
+    use InteractsWithUsers;
     private KernelBrowser $client;
 
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        $container = static::getContainer();
-        $em = $container->get('doctrine.orm.entity_manager');
-        $userRepository = $em->getRepository(User::class);
 
-        // Remove any existing users from the test database
-        foreach ($userRepository->findAll() as $user) {
-            $em->remove($user);
-        }
+        parent::setUp(); // Appelle RefreshDatabase::setUp() qui nettoie la BDD
 
-        $em->flush();
-
-        // Create a User fixture
-        /** @var UserPasswordHasherInterface $passwordHasher */
-        $passwordHasher = $container->get('security.user_password_hasher');
-
-        $user = (new User())->setNni('Z54321');
-        $user->setPassword($passwordHasher->hashPassword($user, 'password'));
-
-        $em->persist($user);
-        $em->flush();
+        // Créer un utilisateur de test en 1 ligne
+        $this->createUser('Z54321', 'password');
     }
 
     #[Test]
