@@ -1,0 +1,22 @@
+meta {
+  name: Get JWT
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:8000/api/auth/login_check
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nni": "F07583",
+    "password": "Test1234Test"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

@@ -59,12 +59,13 @@ FRONTEND_ANGULAR := ng
         db-create db-drop db-migrate db-diff db-rollback db-validate db-fixtures db-reset db-backup db-restore \
         cache-clear cache-clear-prod cc cache-warmup \
         assets-install assets-compile assets-watch \
-        test test-unit test-functional test-coverage test-watch \
+        test test-unit test-functional test-auth test-coverage test-watch \
         lint lint-yaml lint-twig lint-php lint-container fix-php \
         phpstan phpstan-baseline phpmd phpcpd phpcs phpcbf phpmetrics deptrac phpinsights qa qa-full \
         serve console routes router-match debug-container debug-events debug-env debug-config messenger-consume \
         make-controller make-entity make-form make-crud make-command migration make-test make-voter make-subscriber make-auth \
         clean clean-vendor clean-all clean-logs clean-cache-all \
+        jwt-install jwt-generate-keys jwt-keys-permissions jwt-check-config jwt-test-token jwt-decode jwt-setup jwt-clean \
         security-check security-audit \
         deploy-prod optimize-prod \
         about env status version stats
@@ -810,6 +811,11 @@ test-unit: ## 🧪 Lance les tests unitaires
 test-functional: ## 🧪 Lance les tests fonctionnels
 	$(PHPUNIT) --testsuite Functional
 
+test-auth: ## 🔐 Lance les tests d'authentification JWT
+	@echo "$(CYAN)🔐 Lancement des tests d'authentification JWT...$(NC)"
+	$(PHPUNIT) tests/Api/Feature/AuthenticationTest.php --testdox
+	@echo "$(GREEN)✅ Tests d'authentification terminés$(NC)"
+
 test-coverage: ## 📊 Lance les tests avec couverture de code
 	XDEBUG_MODE=coverage $(PHPUNIT) --coverage-html var/coverage
 	@echo "$(GREEN)✅ Couverture générée dans var/coverage$(NC)"
@@ -991,6 +997,138 @@ debug-container: ## 🔍 Liste tous les services du container
 
 debug-events: ## 🔍 Liste tous les events disponibles
 	$(CONSOLE) debug
+
+# =============================================================================
+# JWT AUTHENTICATION
+# =============================================================================
+
+## —— 🔐 JWT Authentication ———————————————————————————————————————————————————
+
+jwt-install: ## 📦 Installe LexikJWTAuthenticationBundle
+	@echo "$(CYAN)📦 Installation de LexikJWTAuthenticationBundle...$(NC)"
+	$(COMPOSER) require lexik/jwt-authentication-bundle
+	@echo "$(GREEN)✅ Bundle JWT installé$(NC)"
+	@echo "$(YELLOW)💡 Prochaine étape: make jwt-generate-keys$(NC)"
+
+jwt-generate-keys: ## 🔑 Génère les clés JWT (publique et privée)
+	@echo "$(CYAN)🔑 Génération des clés JWT...$(NC)"
+	@$(CONSOLE) lexik:jwt:generate-keypair
+	@echo "$(GREEN)✅ Clés JWT générées dans config/jwt/$(NC)"
+	@echo "$(YELLOW)💡 Les clés sont déjà dans .gitignore et ne seront pas commitées$(NC)"
+	@echo "$(CYAN)📝 Configuration:$(NC)"
+	@echo "  • Clé privée: config/jwt/private.pem"
+	@echo "  • Clé publique: config/jwt/public.pem"
+
+jwt-keys-permissions: ## 🔒 Configure les permissions des clés JWT (pour production)
+	@echo "$(CYAN)🔒 Configuration des permissions des clés JWT...$(NC)"
+	@chmod 600 config/jwt/private.pem
+	@chmod 644 config/jwt/public.pem
+	@echo "$(GREEN)✅ Permissions configurées$(NC)"
+	@echo "$(CYAN)📝 Permissions appliquées:$(NC)"
+	@echo "  • private.pem: 600 (lecture/écriture propriétaire uniquement)"
+	@echo "  • public.pem:  644 (lecture pour tous)"
+
+jwt-check-config: ## 🔍 Vérifie la configuration JWT
+	@echo "$(CYAN)🔍 Vérification de la configuration JWT...$(NC)"
+	@echo ""
+	@if [ ! -f config/jwt/private.pem ]; then \
+		echo "$(RED)❌ Clé privée manquante$(NC)"; \
+		echo "$(YELLOW)💡 Exécutez: make jwt-generate-keys$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -f config/jwt/public.pem ]; then \
+		echo "$(RED)❌ Clé publique manquante$(NC)"; \
+		echo "$(YELLOW)💡 Exécutez: make jwt-generate-keys$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ Clés JWT présentes$(NC)"
+	@echo ""
+	@if grep -q "JWT_SECRET_KEY" .env 2>/dev/null; then \
+		echo "$(GREEN)✅ JWT_SECRET_KEY configurée dans .env$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  JWT_SECRET_KEY non trouvée dans .env$(NC)"; \
+	fi
+	@if grep -q "JWT_PUBLIC_KEY" .env 2>/dev/null; then \
+		echo "$(GREEN)✅ JWT_PUBLIC_KEY configurée dans .env$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  JWT_PUBLIC_KEY non trouvée dans .env$(NC)"; \
+	fi
+	@if grep -q "JWT_PASSPHRASE" .env 2>/dev/null; then \
+		echo "$(GREEN)✅ JWT_PASSPHRASE configurée dans .env$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  JWT_PASSPHRASE non trouvée dans .env$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(CYAN)📊 Informations sur les clés:$(NC)"
+	@ls -lh config/jwt/*.pem 2>/dev/null || echo "$(RED)Aucune clé trouvée$(NC)"
+
+jwt-test-token: ## 🧪 Génère un token JWT de test (nécessite un utilisateur)
+	@echo "$(CYAN)🧪 Pour tester la génération de token JWT:$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. Créez un utilisateur (si ce n'est pas déjà fait):$(NC)"
+	@echo "   php bin/console app:create-user"
+	@echo ""
+	@echo "$(YELLOW)2. Utilisez l'endpoint /auth avec curl:$(NC)"
+	@echo "   curl -X POST http://localhost:8000/auth \\"
+	@echo "     -H 'Content-Type: application/json' \\"
+	@echo "     -d '{\"email\":\"user@example.com\",\"password\":\"password\"}'"
+	@echo ""
+	@echo "$(YELLOW)3. Ou utilisez Postman/Insomnia pour tester l'endpoint$(NC)"
+	@echo ""
+
+jwt-decode: ## 🔓 Décode un token JWT (ex: make jwt-decode token=your.jwt.token)
+	@if [ -z "$(token)" ]; then \
+		echo "$(RED)❌ Veuillez fournir un token : make jwt-decode token=your.jwt.token$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)🔓 Décodage du token JWT...$(NC)"
+	@echo ""
+	@echo "$(token)" | cut -d'.' -f2 | base64 -d 2>/dev/null | python3 -m json.tool || \
+	echo "$(token)" | cut -d'.' -f2 | base64 -D 2>/dev/null | python3 -m json.tool || \
+	echo "$(RED)❌ Impossible de décoder le token$(NC)"
+
+jwt-setup: jwt-install jwt-generate-keys jwt-keys-permissions jwt-check-config ## 🚀 Installation complète JWT (bundle + clés + permissions)
+	@echo ""
+	@echo "$(BOLD)$(GREEN)╔═══════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BOLD)$(GREEN)║                                                           ║$(NC)"
+	@echo "$(BOLD)$(GREEN)║           ✅ JWT AUTHENTICATION CONFIGURÉ !               ║$(NC)"
+	@echo "$(BOLD)$(GREEN)║                                                           ║$(NC)"
+	@echo "$(BOLD)$(GREEN)╚═══════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(CYAN)📝 Prochaines étapes:$(NC)"
+	@echo "  1. Configurez votre User entity (make:user)"
+	@echo "  2. Configurez config/packages/security.yaml"
+	@echo "  3. Ajoutez la route /auth dans config/routes.yaml"
+	@echo "  4. Testez avec: make jwt-test-token"
+	@echo ""
+	@echo "$(CYAN)📚 Documentation:$(NC)"
+	@echo "  https://api-platform.com/docs/symfony/jwt/"
+	@echo ""
+
+jwt-clean: ## 🗑️  Supprime les clés JWT
+	@echo "$(YELLOW)⚠️  Êtes-vous sûr de vouloir supprimer les clés JWT ? [y/N]$(NC)"
+	@read -r confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		rm -f config/jwt/private.pem config/jwt/public.pem; \
+		echo "$(GREEN)✅ Clés JWT supprimées$(NC)"; \
+		echo "$(YELLOW)💡 Régénérez-les avec: make jwt-generate-keys$(NC)"; \
+	else \
+		echo "$(CYAN)❌ Opération annulée$(NC)"; \
+	fi
+
+# =============================================================================
+# SÉCURITÉ
+# =============================================================================
+
+## —— 🔒 Sécurité ——————————————————————————————————————————————————————————————
+
+security-check: ## 🔍 Vérifie les vulnérabilités de sécurité
+	@echo "$(CYAN)🔍 Vérification des vulnérabilités de sécurité...$(NC)"
+	symfony security:check
+	@echo "$(GREEN)✅ Vérification terminée$(NC)"
+
+security-audit: composer-audit ## 🔒 Audit de sécurité complet
+	@echo "$(GREEN)✅ Audit de sécurité terminé$(NC)"
 
 # =============================================================================
 # FRONTEND
