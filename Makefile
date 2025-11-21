@@ -52,7 +52,7 @@ FRONTEND_ANGULAR := ng
 # Déclaration des targets comme PHONY
 .PHONY: help install start stop reset env-local \
         work-start work-stop work-status work-stats work-today work-week work-reset work-export \
-        git-stats wakatime-today wakatime-week wakatime-status \
+        git-stats show-wip wakatime-today wakatime-week wakatime-status \
         composer-install composer-update composer-validate composer-audit composer-require composer-remove \
         docker-start docker-up docker-down docker-restart docker-logs docker-ps docker-build docker-clean docker-shell \
         docker-all docker-tools docker-mail docker-cache docker-queue docker-search docker-dev \
@@ -471,6 +471,37 @@ git-stats: ## 📊 Affiche les statistiques Git du projet
 	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
 	echo ""; \
 	git log --since="7 days ago" --format="%ad - %s" --date=short 2>/dev/null | head -n 10 || echo "  $(YELLOW)Aucun commit récent$(NC)"; \
+	echo ""
+
+show-wip: ## 📝 Affiche les commits de la branche courante (utile pour les PR)
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+	echo "$(BOLD)$(CYAN)║              📝 TRAVAIL EN COURS (WIP)                   ║$(NC)"; \
+	echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+	echo ""; \
+	BRANCH_NAME=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null); \
+	if [ "$$BRANCH_NAME" = "main" ] || [ "$$BRANCH_NAME" = "master" ]; then \
+		echo "$(YELLOW)⚠️  Vous êtes sur la branche principale ($$BRANCH_NAME)$(NC)"; \
+		echo "$(CYAN)💡 Cette commande est utile pour voir les changements sur une branche de feature$(NC)"; \
+		echo ""; \
+		exit 0; \
+	fi; \
+	echo "$(GREEN)🌿 Branche actuelle:$(NC) $$BRANCH_NAME"; \
+	echo ""; \
+	COMMIT_COUNT=$$(git rev-list --count main..$$BRANCH_NAME 2>/dev/null || echo 0); \
+	if [ "$$COMMIT_COUNT" = "0" ]; then \
+		echo "$(YELLOW)⚠️  Aucun commit sur cette branche par rapport à main$(NC)"; \
+		echo ""; \
+		exit 0; \
+	fi; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(CYAN)📊 Commits ($$COMMIT_COUNT) et fichiers modifiés:$(NC)"; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo ""; \
+	git log main..$$BRANCH_NAME --name-status --pretty=format:"$(YELLOW)Commit %h$(NC) - %s%n$(GREEN)Author:$(NC) %an%n$(GREEN)Date:$(NC) %ad%n" --date=short 2>/dev/null; \
+	echo ""; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(GREEN)💡 Astuce:$(NC) Copiez ces informations pour votre Pull Request"; \
 	echo ""
 
 wakatime-today: ## ⏱️  Affiche les stats WakaTime du jour
