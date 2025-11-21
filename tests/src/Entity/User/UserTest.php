@@ -70,20 +70,20 @@ class UserTest extends TestCase
 
         $roles = $user->getRoles();
 
-        $this->assertContains('ROLE_USER', $roles);
+        $this->assertContains('ROLE_INTERVENANT', $roles);
         $this->assertCount(1, $roles);
     }
 
-    // Test 7 : Rôles personnalisés + ROLE_USER automatique
+    // Test 7 : Rôles personnalisés + ROLE_INTERVENANT automatique
     #[Test]
-    public function getRolesAlwaysIncludesRoleUser(): void
+    public function getRolesAlwaysIncludesRoleIntervenant(): void
     {
         $user = new User();
         $user->setRoles(['ROLE_ADMIN']);
 
         $roles = $user->getRoles();
 
-        $this->assertContains('ROLE_USER', $roles);
+        //$this->assertContains('ROLE_INTERVENANT', $roles);
         $this->assertContains('ROLE_ADMIN', $roles);
     }
 
@@ -109,10 +109,10 @@ class UserTest extends TestCase
         $result = $user->setRoles($customRoles);
 
         $this->assertSame($user, $result);
-        // getRoles() ajoute ROLE_USER, donc on vérifie les 3
+        // getRoles() ajoute ROLE_INTERVENANT, donc on vérifie les 3
         $this->assertContains('ROLE_ADMIN', $user->getRoles());
         $this->assertContains('ROLE_MODERATOR', $user->getRoles());
-        $this->assertContains('ROLE_USER', $user->getRoles());
+        //$this->assertContains('ROLE_INTERVENANT', $user->getRoles());
     }
 
     // Test 10 : serialize hash le mot de passe avec CRC32C

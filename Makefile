@@ -52,19 +52,20 @@ FRONTEND_ANGULAR := ng
 # Déclaration des targets comme PHONY
 .PHONY: help install start stop reset env-local \
         work-start work-stop work-status work-stats work-today work-week work-reset work-export \
-        git-stats wakatime-today wakatime-week wakatime-status \
+        git-stats show-wip wakatime-today wakatime-week wakatime-status \
         composer-install composer-update composer-validate composer-audit composer-require composer-remove \
         docker-start docker-up docker-down docker-restart docker-logs docker-ps docker-build docker-clean docker-shell \
         docker-all docker-tools docker-mail docker-cache docker-queue docker-search docker-dev \
         db-create db-drop db-migrate db-diff db-rollback db-validate db-fixtures db-reset db-backup db-restore \
         cache-clear cache-clear-prod cc cache-warmup \
         assets-install assets-compile assets-watch \
-        test test-unit test-functional test-coverage test-watch \
+        test test-unit test-functional test-auth test-coverage test-watch \
         lint lint-yaml lint-twig lint-php lint-container fix-php \
         phpstan phpstan-baseline phpmd phpcpd phpcs phpcbf phpmetrics deptrac phpinsights qa qa-full \
         serve console routes router-match debug-container debug-events debug-env debug-config messenger-consume \
         make-controller make-entity make-form make-crud make-command migration make-test make-voter make-subscriber make-auth \
         clean clean-vendor clean-all clean-logs clean-cache-all \
+        jwt-install jwt-generate-keys jwt-keys-permissions jwt-check-config jwt-test-token jwt-decode jwt-setup jwt-clean \
         security-check security-audit \
         deploy-prod optimize-prod \
         about env status version stats
@@ -210,28 +211,6 @@ work-start: ## ⏱️  Démarre le tracking du temps de travail
 	@echo "  • make work-status  - Voir le temps écoulé"
 	@echo "  • make work-stop    - Terminer la session"
 	@echo "  • make work-stats   - Voir toutes les statistiques"
-	@if [ -f var/time-tracking/work-start.txt ]; then \
-		START=$$(cat var/time-tracking/work-start.txt); \
-		END=$$(date +%s); \
-		DURATION=$$((END - START)); \
-		HOURS=$$((DURATION / 3600)); \
-		MINUTES=$$(((DURATION % 3600) / 60)); \
-		SECONDS=$$((DURATION % 60)); \
-		echo ""; \
-		echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
-		echo "$(BOLD)$(CYAN)║           ⏹️  SESSION DE TRAVAIL TERMINÉE                  ║$(NC)"; \
-		echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
-		echo ""; \
-		echo "$(GREEN)🕐 Début:$(NC)      $$(date -r $$START '+%Y-%m-%d %H:%M:%S')"; \
-		echo "$(GREEN)🕐 Fin:$(NC)        $$(date '+%Y-%m-%d %H:%M:%S')"; \
-		echo "$(BOLD)$(YELLOW)⏱️  Durée:$(NC)      $${HOURS}h $${MINUTES}m $${SECONDS}s$(NC)"; \
-		echo ""; \
-		mkdir -p var/time-tracking; \
-		echo "$$(date -r $$START '+%Y-%m-%d %H:%M:%S'),$$(date '+%Y-%m-%d %H:%M:%S'),$${DURATION},$${HOURS}h $${MINUTES}m" >> var/time-tracking/history.csv; \
-		rm var/time-tracking/work-start.txt; \
-		echo "$(GREEN)✅ Session enregistrée !$(NC)"; \
-		echo "$(CYAN)💡 Utilisez 'make work-stats' pour voir vos statistiques$(NC)"; \
-	fi
 
 work-stop: ## ⏹️  Arrête le tracking et affiche le temps écoulé
 	@if [ ! -f var/time-tracking/work-start.txt ]; then \
@@ -494,6 +473,37 @@ git-stats: ## 📊 Affiche les statistiques Git du projet
 	git log --since="7 days ago" --format="%ad - %s" --date=short 2>/dev/null | head -n 10 || echo "  $(YELLOW)Aucun commit récent$(NC)"; \
 	echo ""
 
+show-wip: ## 📝 Affiche les commits de la branche courante (utile pour les PR)
+	@echo ""; \
+	echo "$(BOLD)$(CYAN)╔═══════════════════════════════════════════════════════════╗$(NC)"; \
+	echo "$(BOLD)$(CYAN)║              📝 TRAVAIL EN COURS (WIP)                   ║$(NC)"; \
+	echo "$(BOLD)$(CYAN)╚═══════════════════════════════════════════════════════════╝$(NC)"; \
+	echo ""; \
+	BRANCH_NAME=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null); \
+	if [ "$$BRANCH_NAME" = "main" ] || [ "$$BRANCH_NAME" = "master" ]; then \
+		echo "$(YELLOW)⚠️  Vous êtes sur la branche principale ($$BRANCH_NAME)$(NC)"; \
+		echo "$(CYAN)💡 Cette commande est utile pour voir les changements sur une branche de feature$(NC)"; \
+		echo ""; \
+		exit 0; \
+	fi; \
+	echo "$(GREEN)🌿 Branche actuelle:$(NC) $$BRANCH_NAME"; \
+	echo ""; \
+	COMMIT_COUNT=$$(git rev-list --count main..$$BRANCH_NAME 2>/dev/null || echo 0); \
+	if [ "$$COMMIT_COUNT" = "0" ]; then \
+		echo "$(YELLOW)⚠️  Aucun commit sur cette branche par rapport à main$(NC)"; \
+		echo ""; \
+		exit 0; \
+	fi; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(CYAN)📊 Commits ($$COMMIT_COUNT) et fichiers modifiés:$(NC)"; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo ""; \
+	git log main..$$BRANCH_NAME --name-status --pretty=format:"$(YELLOW)Commit %h$(NC) - %s%n$(GREEN)Author:$(NC) %an%n$(GREEN)Date:$(NC) %ad%n" --date=short 2>/dev/null; \
+	echo ""; \
+	echo "$(CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
+	echo "$(BOLD)$(GREEN)💡 Astuce:$(NC) Copiez ces informations pour votre Pull Request"; \
+	echo ""
+
 wakatime-today: ## ⏱️  Affiche les stats WakaTime du jour
 	@if ! command -v wakatime-cli > /dev/null 2>&1; then \
 		echo "$(RED)❌ WakaTime CLI n'est pas installé$(NC)"; \
@@ -564,6 +574,36 @@ composer-require: ## ➕ Ajoute une dépendance (ex: make composer-require packa
 
 composer-remove: ## ➖ Supprime une dépendance (ex: make composer-remove package=vendor/package)
 	$(COMPOSER) remove $(package)
+
+# =============================================================================
+# COMMANDE SYMFONY
+# =============================================================================
+
+## —— 🎸 Symfony ———————————————————————————————————————————————————————————————
+
+controller: ## 🎯 Crée un nouveau contrôleur (ex: make controller name=HomeController)
+	@echo "$(BOLD)$(CYAN)🔧 Création du contrôleur...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:controller $(name)$(NC)"
+	@echo ""
+	@bin/console make:controller $(name)
+
+security: ## 🎯 Crée un système d'authentification (ex: make auth)
+	@echo "$(BOLD)$(CYAN)🔐 Création du système d'authentification avec formulaire...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:security:form-login$(NC)"
+	@echo ""
+	@bin/console make:security:form-login
+	
+form: ## 🎯 Crée un formulaire (ex: make form name=MyForm)
+	@echo "$(BOLD)$(CYAN)📝 Création du formulaire...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:form $(name)$(NC)"
+	@echo ""
+	@bin/console make:form $(name)
+
+crud: ## 🎯 Crée le CRUD d'une entité (ex: make crud entity=Article)
+	@echo "$(BOLD)$(CYAN)📝 Création du CRUD...$(NC)"
+	@echo "$(CYAN)💡 Commande Symfony: bin/console make:crud $(entity)$(NC)"
+	@echo ""
+	@bin/console make:crud $(entity)
 
 # =============================================================================
 # GESTION DOCKER
@@ -802,6 +842,11 @@ test-unit: ## 🧪 Lance les tests unitaires
 test-functional: ## 🧪 Lance les tests fonctionnels
 	$(PHPUNIT) --testsuite Functional
 
+test-auth: ## 🔐 Lance les tests d'authentification JWT
+	@echo "$(CYAN)🔐 Lancement des tests d'authentification JWT...$(NC)"
+	$(PHPUNIT) tests/Api/Feature/AuthenticationTest.php --testdox
+	@echo "$(GREEN)✅ Tests d'authentification terminés$(NC)"
+
 test-coverage: ## 📊 Lance les tests avec couverture de code
 	XDEBUG_MODE=coverage $(PHPUNIT) --coverage-html var/coverage
 	@echo "$(GREEN)✅ Couverture générée dans var/coverage$(NC)"
@@ -983,6 +1028,138 @@ debug-container: ## 🔍 Liste tous les services du container
 
 debug-events: ## 🔍 Liste tous les events disponibles
 	$(CONSOLE) debug
+
+# =============================================================================
+# JWT AUTHENTICATION
+# =============================================================================
+
+## —— 🔐 JWT Authentication ———————————————————————————————————————————————————
+
+jwt-install: ## 📦 Installe LexikJWTAuthenticationBundle
+	@echo "$(CYAN)📦 Installation de LexikJWTAuthenticationBundle...$(NC)"
+	$(COMPOSER) require lexik/jwt-authentication-bundle
+	@echo "$(GREEN)✅ Bundle JWT installé$(NC)"
+	@echo "$(YELLOW)💡 Prochaine étape: make jwt-generate-keys$(NC)"
+
+jwt-generate-keys: ## 🔑 Génère les clés JWT (publique et privée)
+	@echo "$(CYAN)🔑 Génération des clés JWT...$(NC)"
+	@$(CONSOLE) lexik:jwt:generate-keypair
+	@echo "$(GREEN)✅ Clés JWT générées dans config/jwt/$(NC)"
+	@echo "$(YELLOW)💡 Les clés sont déjà dans .gitignore et ne seront pas commitées$(NC)"
+	@echo "$(CYAN)📝 Configuration:$(NC)"
+	@echo "  • Clé privée: config/jwt/private.pem"
+	@echo "  • Clé publique: config/jwt/public.pem"
+
+jwt-keys-permissions: ## 🔒 Configure les permissions des clés JWT (pour production)
+	@echo "$(CYAN)🔒 Configuration des permissions des clés JWT...$(NC)"
+	@chmod 600 config/jwt/private.pem
+	@chmod 644 config/jwt/public.pem
+	@echo "$(GREEN)✅ Permissions configurées$(NC)"
+	@echo "$(CYAN)📝 Permissions appliquées:$(NC)"
+	@echo "  • private.pem: 600 (lecture/écriture propriétaire uniquement)"
+	@echo "  • public.pem:  644 (lecture pour tous)"
+
+jwt-check-config: ## 🔍 Vérifie la configuration JWT
+	@echo "$(CYAN)🔍 Vérification de la configuration JWT...$(NC)"
+	@echo ""
+	@if [ ! -f config/jwt/private.pem ]; then \
+		echo "$(RED)❌ Clé privée manquante$(NC)"; \
+		echo "$(YELLOW)💡 Exécutez: make jwt-generate-keys$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -f config/jwt/public.pem ]; then \
+		echo "$(RED)❌ Clé publique manquante$(NC)"; \
+		echo "$(YELLOW)💡 Exécutez: make jwt-generate-keys$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ Clés JWT présentes$(NC)"
+	@echo ""
+	@if grep -q "JWT_SECRET_KEY" .env 2>/dev/null; then \
+		echo "$(GREEN)✅ JWT_SECRET_KEY configurée dans .env$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  JWT_SECRET_KEY non trouvée dans .env$(NC)"; \
+	fi
+	@if grep -q "JWT_PUBLIC_KEY" .env 2>/dev/null; then \
+		echo "$(GREEN)✅ JWT_PUBLIC_KEY configurée dans .env$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  JWT_PUBLIC_KEY non trouvée dans .env$(NC)"; \
+	fi
+	@if grep -q "JWT_PASSPHRASE" .env 2>/dev/null; then \
+		echo "$(GREEN)✅ JWT_PASSPHRASE configurée dans .env$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  JWT_PASSPHRASE non trouvée dans .env$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(CYAN)📊 Informations sur les clés:$(NC)"
+	@ls -lh config/jwt/*.pem 2>/dev/null || echo "$(RED)Aucune clé trouvée$(NC)"
+
+jwt-test-token: ## 🧪 Génère un token JWT de test (nécessite un utilisateur)
+	@echo "$(CYAN)🧪 Pour tester la génération de token JWT:$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. Créez un utilisateur (si ce n'est pas déjà fait):$(NC)"
+	@echo "   php bin/console app:create-user"
+	@echo ""
+	@echo "$(YELLOW)2. Utilisez l'endpoint /auth avec curl:$(NC)"
+	@echo "   curl -X POST http://localhost:8000/auth \\"
+	@echo "     -H 'Content-Type: application/json' \\"
+	@echo "     -d '{\"email\":\"user@example.com\",\"password\":\"password\"}'"
+	@echo ""
+	@echo "$(YELLOW)3. Ou utilisez Postman/Insomnia pour tester l'endpoint$(NC)"
+	@echo ""
+
+jwt-decode: ## 🔓 Décode un token JWT (ex: make jwt-decode token=your.jwt.token)
+	@if [ -z "$(token)" ]; then \
+		echo "$(RED)❌ Veuillez fournir un token : make jwt-decode token=your.jwt.token$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)🔓 Décodage du token JWT...$(NC)"
+	@echo ""
+	@echo "$(token)" | cut -d'.' -f2 | base64 -d 2>/dev/null | python3 -m json.tool || \
+	echo "$(token)" | cut -d'.' -f2 | base64 -D 2>/dev/null | python3 -m json.tool || \
+	echo "$(RED)❌ Impossible de décoder le token$(NC)"
+
+jwt-setup: jwt-install jwt-generate-keys jwt-keys-permissions jwt-check-config ## 🚀 Installation complète JWT (bundle + clés + permissions)
+	@echo ""
+	@echo "$(BOLD)$(GREEN)╔═══════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BOLD)$(GREEN)║                                                           ║$(NC)"
+	@echo "$(BOLD)$(GREEN)║           ✅ JWT AUTHENTICATION CONFIGURÉ !               ║$(NC)"
+	@echo "$(BOLD)$(GREEN)║                                                           ║$(NC)"
+	@echo "$(BOLD)$(GREEN)╚═══════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(CYAN)📝 Prochaines étapes:$(NC)"
+	@echo "  1. Configurez votre User entity (make:user)"
+	@echo "  2. Configurez config/packages/security.yaml"
+	@echo "  3. Ajoutez la route /auth dans config/routes.yaml"
+	@echo "  4. Testez avec: make jwt-test-token"
+	@echo ""
+	@echo "$(CYAN)📚 Documentation:$(NC)"
+	@echo "  https://api-platform.com/docs/symfony/jwt/"
+	@echo ""
+
+jwt-clean: ## 🗑️  Supprime les clés JWT
+	@echo "$(YELLOW)⚠️  Êtes-vous sûr de vouloir supprimer les clés JWT ? [y/N]$(NC)"
+	@read -r confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		rm -f config/jwt/private.pem config/jwt/public.pem; \
+		echo "$(GREEN)✅ Clés JWT supprimées$(NC)"; \
+		echo "$(YELLOW)💡 Régénérez-les avec: make jwt-generate-keys$(NC)"; \
+	else \
+		echo "$(CYAN)❌ Opération annulée$(NC)"; \
+	fi
+
+# =============================================================================
+# SÉCURITÉ
+# =============================================================================
+
+## —— 🔒 Sécurité ——————————————————————————————————————————————————————————————
+
+security-check: ## 🔍 Vérifie les vulnérabilités de sécurité
+	@echo "$(CYAN)🔍 Vérification des vulnérabilités de sécurité...$(NC)"
+	symfony security:check
+	@echo "$(GREEN)✅ Vérification terminée$(NC)"
+
+security-audit: composer-audit ## 🔒 Audit de sécurité complet
+	@echo "$(GREEN)✅ Audit de sécurité terminé$(NC)"
 
 # =============================================================================
 # FRONTEND
